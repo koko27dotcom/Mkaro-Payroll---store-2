@@ -71,7 +71,7 @@ const calculatePayroll = ({
 }) => {
   const settings = { ...DEFAULT_CONFIG, ...config };
   const workingDays = period?.workingDays ?? 26;
-  const baseSalary = employee?.baseSalary ?? 0;
+  const baseSalary = employee?.baseSalary ?? employee?.salary ?? 0;
   const dailyRate = baseSalary / workingDays;
   const presentDays = attendance?.presentDays ?? workingDays;
   const basePay = dailyRate * presentDays;
@@ -118,15 +118,81 @@ const calculatePayroll = ({
   };
 };
 
-class PayrollRun {
-  constructor({ id, periodId, entries = [] }) {
+class Employee {
+  constructor({
+    id,
+    name,
+    nrc,
+    position,
+    salary = 0,
+    allowances = {},
+    deductions = {},
+    ssbEligible = true,
+    pitEligible = true
+  } = {}) {
     this.id = id;
-    this.periodId = periodId;
+    this.name = name;
+    this.nrc = nrc;
+    this.position = position;
+    this.salary = salary;
+    this.baseSalary = salary;
+    this.allowances = allowances;
+    this.deductions = deductions;
+    this.ssbEligible = ssbEligible;
+    this.pitEligible = pitEligible;
+  }
+}
+
+class PayrollRun {
+  constructor({ id, periodId, period, entries = [], employees = [] } = {}) {
+    this.id = id;
+    this.periodId = periodId ?? period?.id;
+    this.period = period ?? (periodId ? { id: periodId } : null);
     this.entries = entries;
+    this.employees = employees;
     this.status = STATUS.DRAFT;
     this.approvedBy = null;
     this.lockedAt = null;
     this.submittedAt = null;
+  }
+
+  addEmployee(employee) {
+    this.employees = [...this.employees, employee];
+  }
+
+  calculateEntries({
+    attendanceByEmployee = {},
+    overtimeByEmployee = {},
+    allowancesByEmployee = {},
+    deductionsByEmployee = {},
+    config
+  } = {}) {
+    if (this.status === STATUS.LOCKED) {
+      throw new Error('Locked payroll runs cannot be recalculated.');
+    }
+    if (!this.period) {
+      throw new Error('Payroll period is required to calculate entries.');
+    }
+
+    this.entries = this.employees.map((employee) =>
+      calculatePayroll({
+        employee,
+        period: this.period,
+        attendance: attendanceByEmployee[employee.id],
+        overtime: overtimeByEmployee[employee.id],
+        allowances: {
+          ...employee.allowances,
+          ...(allowancesByEmployee[employee.id] || {})
+        },
+        deductions: {
+          ...employee.deductions,
+          ...(deductionsByEmployee[employee.id] || {})
+        },
+        config
+      })
+    );
+
+    return this.entries;
   }
 
   submit({ submittedAt = new Date().toISOString() } = {}) {
@@ -272,6 +338,7 @@ module.exports = {
   STATUS,
   calculatePIT,
   calculatePayroll,
+  Employee,
   PayrollRun,
   generateSSBReport,
   generatePITReport,
