@@ -1,0 +1,11 @@
+{
+  "name": "myanmar-payroll-engine",
+  "version": "1.0.0",
+  "description": "Production-ready Myanmar payroll engine with reports and export pack",
+  "main": "src/payrollEngine.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT"
+}
